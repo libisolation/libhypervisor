@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 2.4)
 
 project(hv)
 
+set(CMAKE_MACOSX_RPATH 1)
+
 set(CMAKE_C_FLAGS_RELEASE "-Wall -O2")
 set(CMAKE_C_FLAGS_DEBUG "-g -O0")
 set(CMAKE_BUILD_TYPE Release)
