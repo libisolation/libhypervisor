@@ -1,3 +1,3 @@
-# libhypervisor
+# libhv
 
-libhypervisor is a cross-platform hypervisor library.
+libhv is a cross-platform hypervisor library.
