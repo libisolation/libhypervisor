@@ -1,4 +1,4 @@
-#icnlude <assert.h>
+#include <assert.h>
 #include <err.h>
 #include <fcntl.h>
 #include <linux/kvm.h>
