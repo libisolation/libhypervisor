@@ -9,11 +9,17 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef unsigned vmm_return_t;
-typedef unsigned vmm_vcpuid_t;
+typedef unsigned vmm_cpuid_t;
 typedef const void *vmm_uvaddr_t;
 typedef uint64_t vmm_gpaddr_t;
-typedef uint64_t vmm_vmem_flags_t, vmm_vcpu_flags_t;
+typedef uint64_t vmm_memory_flags_t, vmm_cpu_flags_t;
+
+#define VMM_ERROR   (-1)
+#define VMM_EBUSY   (-2)
+#define VMM_EINVAL  (-3)
+#define VMM_ENORES  (-4)
+#define VMM_ENODEV  (-5)
+#define VMM_ENOTSUP (-6)
 
 typedef enum {
   VMM_X64_RIP,
@@ -70,22 +76,20 @@ typedef enum {
   VMM_X64_REGISTERS_MAX,
 } vmm_x64_reg_t;
 
-vmm_return_t vmm_create(void);
-vmm_return_t vmm_destroy(void);
+int vmm_create(void);
+int vmm_destroy(void);
 
-vmm_return_t vmm_vmem_map(vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, vmm_vmem_flags_t flags);
-vmm_return_t vmm_vmem_unmap(vmm_gpaddr_t gpa, size_t size);
-vmm_return_t vmm_vmem_protect(vmm_gpaddr_t gpa, size_t size, vmm_vmem_flags_t flags);
+int vmm_memory_map(vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, vmm_memory_flags_t flags);
+int vmm_memory_unmap(vmm_gpaddr_t gpa, size_t size);
+int vmm_memory_protect(vmm_gpaddr_t gpa, size_t size, vmm_memory_flags_t flags);
 
-vmm_return_t vmm_vcpu_create(vmm_vcpuid_t *vcpu);
-vmm_return_t vmm_vcpu_destroy(vmm_vcpuid_t vcpu);
-vmm_return_t vmm_vcpu_run(vmm_vcpuid_t vcpu);
-vmm_return_t vmm_vcpu_interrupt(vmm_vcpuid_t* vcpus, unsigned int vcpu_count);
-vmm_return_t vmm_vcpu_invalidate_tlb(vmm_vcpuid_t vcpu);
-vmm_return_t vmm_vcpu_read_register(vmm_vcpuid_t vcpu, vmm_x64_reg_t reg, uint64_t *value);
-vmm_return_t vmm_vcpu_write_register(vmm_vcpuid_t vcpu, vmm_x64_reg_t reg, uint64_t value);
-vmm_return_t vmm_vcpu_read_msr(vmm_vcpuid_t vcpu, uint32_t msr, uint64_t *value);
-vmm_return_t vmm_vcpu_write_msr(vmm_vcpuid_t vcpu, uint32_t msr, uint64_t value);
+int vmm_cpu_create(vmm_cpuid_t *cpu);
+int vmm_cpu_destroy(vmm_cpuid_t cpu);
+int vmm_cpu_run(vmm_cpuid_t cpu);
+int vmm_cpu_read_register(vmm_cpuid_t cpu, vmm_x64_reg_t reg, uint64_t *value);
+int vmm_cpu_write_register(vmm_cpuid_t cpu, vmm_x64_reg_t reg, uint64_t value);
+int vmm_cpu_read_msr(vmm_cpuid_t cpu, uint32_t msr, uint64_t *value);
+int vmm_cpu_write_msr(vmm_cpuid_t cpu, uint32_t msr, uint64_t value);
 
 #ifdef __cplusplus
 }

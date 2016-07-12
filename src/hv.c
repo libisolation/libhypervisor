@@ -1,41 +1,52 @@
 #include "hv.h"
 #include <Hypervisor/hv.h>
 
-vmm_return_t vmm_create(void) {
-  return hv_vm_create(HV_VM_DEFAULT);
+static int tr_ret(hv_return_t ret) {
+  if (ret == HV_SUCCESS)      return 0;
+  if (ret == HV_ERROR)        return VMM_ERROR;
+  if (ret == HV_BUSY)         return VMM_EBUSY;
+  if (ret == HV_BAD_ARGUMENT) return VMM_EINVAL;
+  if (ret == HV_NO_RESOURCES) return VMM_ENORES;
+  if (ret == HV_NO_DEVICE)    return VMM_ENODEV;
+  if (ret == HV_UNSUPPORTED)  return VMM_ENOTSUP;
+  return VMM_ERROR;
 }
 
-vmm_return_t vmm_destroy(void) {
-  return hv_vm_destroy();
+int vmm_create(void) {
+  return tr_ret(hv_vm_create(HV_VM_DEFAULT));
 }
 
-vmm_return_t vmm_vmem_map(vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, vmm_vmem_flags_t flags) {
-  return hv_vm_map(uva, gpa, size, flags);
+int vmm_destroy(void) {
+  return tr_ret(hv_vm_destroy());
 }
 
-vmm_return_t vmm_vmem_unmap(vmm_gpaddr_t gpa, size_t size) {
-  return hv_vm_unmap(gpa, size);
+int vmm_memory_map(vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, vmm_memory_flags_t flags) {
+  return tr_ret(hv_vm_map(uva, gpa, size, flags));
 }
 
-vmm_return_t vmm_vmem_protect(vmm_gpaddr_t gpa, size_t size, vmm_vmem_flags_t flags) {
-  return hv_vm_protect(gpa, size, flags);
+int vmm_memory_unmap(vmm_gpaddr_t gpa, size_t size) {
+  return tr_ret(hv_vm_unmap(gpa, size));
 }
 
-vmm_return_t vmm_vcpu_create(vmm_vcpuid_t *vcpu) {
-  return hv_vcpu_create(vcpu, HV_VCPU_DEFAULT);
+int vmm_memory_protect(vmm_gpaddr_t gpa, size_t size, vmm_memory_flags_t flags) {
+  return tr_ret(hv_vm_protect(gpa, size, flags));
 }
 
-vmm_return_t vmm_vcpu_destroy(vmm_vcpuid_t vcpu) {
-  return hv_vcpu_destroy(vcpu);
+int vmm_cpu_create(vmm_cpuid_t *cpu) {
+  return tr_ret(hv_vcpu_create(cpu, HV_VCPU_DEFAULT));
 }
 
-vmm_return_t vmm_vcpu_run(vmm_vcpuid_t vcpu) {
-  return hv_vcpu_run(vcpu);
+int vmm_cpu_destroy(vmm_cpuid_t cpu) {
+  return tr_ret(hv_vcpu_destroy(cpu));
+}
+
+int vmm_cpu_run(vmm_cpuid_t cpu) {
+  return tr_ret(hv_vcpu_run(cpu));
 }
 
 static hv_x86_reg_t tr_reg(vmm_x64_reg_t reg) {
   switch (reg) {
-#define CASE(NAME) case VMM_X64_##NAME: return HV_X86_##NAME; 
+#define CASE(NAME) case VMM_X64_##NAME: return HV_X86_##NAME;
    CASE(RIP)
    CASE(RFLAGS)
    CASE(RAX)
@@ -91,19 +102,19 @@ static hv_x86_reg_t tr_reg(vmm_x64_reg_t reg) {
   }
 }
 
-vmm_return_t vmm_vcpu_read_register(vmm_vcpuid_t vcpu, vmm_x64_reg_t reg, uint64_t *value) {
-  return hv_vcpu_read_register(vcpu, tr_reg(reg), value);
+int vmm_cpu_read_register(vmm_cpuid_t cpu, vmm_x64_reg_t reg, uint64_t *value) {
+  return tr_ret(hv_vcpu_read_register(cpu, tr_reg(reg), value));
 }
 
-vmm_return_t vmm_vcpu_write_register(vmm_vcpuid_t vcpu, vmm_x64_reg_t reg, uint64_t value) {
-  return hv_vcpu_write_register(vcpu, tr_reg(reg), value);
+int vmm_cpu_write_register(vmm_cpuid_t cpu, vmm_x64_reg_t reg, uint64_t value) {
+  return tr_ret(hv_vcpu_write_register(cpu, tr_reg(reg), value));
 }
 
-vmm_return_t vmm_vcpu_read_msr(vmm_vcpuid_t vcpu, uint32_t msr, uint64_t *value) {
-  return hv_vcpu_read_msr(vcpu, msr, value);
+int vmm_cpu_read_msr(vmm_cpuid_t cpu, uint32_t msr, uint64_t *value) {
+  return tr_ret(hv_vcpu_read_msr(cpu, msr, value));
 }
 
-vmm_return_t vmm_vcpu_write_msr(vmm_vcpuid_t vcpu, uint32_t msr, uint64_t value) {
-  return hv_vcpu_write_msr(vcpu, msr, value);
+int vmm_cpu_write_msr(vmm_cpuid_t cpu, uint32_t msr, uint64_t value) {
+  return tr_ret(hv_vcpu_write_msr(cpu, msr, value));
 }
 
