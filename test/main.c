@@ -24,11 +24,11 @@
  * IN THE SOFTWARE.
  */
 
-#include <hv.h>
+#include "hv.h"
+#include <stdio.h>
 
 int main(void)
 {
-  int kvm, vmfd, ret;
   unsigned cpu;
   const uint8_t code[] = {
     0xba, 0xf8, 0x03, /* mov $0x3f8, %dx */
@@ -40,8 +40,6 @@ int main(void)
     0xf4,             /* hlt */
   };
   uint8_t *mem;
-  struct kvm_sregs sregs;
-  size_t mmap_size;
 
   vmm_create();
 
