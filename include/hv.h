@@ -75,6 +75,16 @@ typedef enum {
   VMM_X64_REGISTERS_MAX,
 } vmm_x64_reg_t;
 
+enum {
+  VMM_CTRL_EXIT_REASON,
+};
+
+enum {
+  VMM_EXIT_HLT,
+  VMM_EXIT_IO,
+  VMM_EXIT_REASONS_MAX,
+};
+
 int vmm_create(void);
 int vmm_destroy(void);
 
@@ -89,6 +99,9 @@ int vmm_cpu_read_register(vmm_x64_reg_t reg, uint64_t *value);
 int vmm_cpu_write_register(vmm_x64_reg_t reg, uint64_t value);
 int vmm_cpu_read_msr(uint32_t msr, uint64_t *value);
 int vmm_cpu_write_msr(uint32_t msr, uint64_t value);
+
+int vmm_get(int id, uint64_t *value);
+int vmm_set(int id, uint64_t value);
 
 #ifdef __cplusplus
 }

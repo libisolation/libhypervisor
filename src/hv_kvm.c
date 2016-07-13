@@ -188,3 +188,18 @@ vmm_cpu_write_register(vmm_x64_reg_t reg, uint64_t value)
 
   return 0;
 }
+
+int
+vmm_get(int id, uint64_t *value)
+{
+  assert(id == VMM_CTRL_EXIT_REASON);
+
+  switch (run->exit_reason) {
+  case KVM_EXIT_HLT: *value = VMM_EXIT_HLT; break;
+  case KVM_EXIT_IO:  *value = VMM_EXIT_IO; break;
+  default:
+    *value = VMM_EXIT_REASONS_MAX;
+    return -1;
+  }
+  return 0;
+}
