@@ -32,16 +32,18 @@ int vmm_memory_protect(vmm_gpaddr_t gpa, size_t size, vmm_memory_flags_t flags) 
   return tr_ret(hv_vm_protect(gpa, size, flags));
 }
 
-int vmm_cpu_create(vmm_cpuid_t *cpu) {
-  return tr_ret(hv_vcpu_create(cpu, HV_VCPU_DEFAULT));
+__thread unsigned vmm_vcpuid;
+
+int vmm_cpu_create(void) {
+  return tr_ret(hv_vcpu_create(&vmm_vcpuid, HV_VCPU_DEFAULT));
 }
 
-int vmm_cpu_destroy(vmm_cpuid_t cpu) {
-  return tr_ret(hv_vcpu_destroy(cpu));
+int vmm_cpu_destroy(void) {
+  return tr_ret(hv_vcpu_destroy(vmm_vcpuid));
 }
 
-int vmm_cpu_run(vmm_cpuid_t cpu) {
-  return tr_ret(hv_vcpu_run(cpu));
+int vmm_cpu_run(void) {
+  return tr_ret(hv_vcpu_run(vmm_vcpuid));
 }
 
 static hv_x86_reg_t tr_reg(vmm_x64_reg_t reg) {
@@ -102,19 +104,19 @@ static hv_x86_reg_t tr_reg(vmm_x64_reg_t reg) {
   }
 }
 
-int vmm_cpu_read_register(vmm_cpuid_t cpu, vmm_x64_reg_t reg, uint64_t *value) {
-  return tr_ret(hv_vcpu_read_register(cpu, tr_reg(reg), value));
+int vmm_cpu_read_register(vmm_x64_reg_t reg, uint64_t *value) {
+  return tr_ret(hv_vcpu_read_register(vmm_vcpuid, tr_reg(reg), value));
 }
 
-int vmm_cpu_write_register(vmm_cpuid_t cpu, vmm_x64_reg_t reg, uint64_t value) {
-  return tr_ret(hv_vcpu_write_register(cpu, tr_reg(reg), value));
+int vmm_cpu_write_register(vmm_x64_reg_t reg, uint64_t value) {
+  return tr_ret(hv_vcpu_write_register(vmm_vcpuid, tr_reg(reg), value));
 }
 
-int vmm_cpu_read_msr(vmm_cpuid_t cpu, uint32_t msr, uint64_t *value) {
-  return tr_ret(hv_vcpu_read_msr(cpu, msr, value));
+int vmm_cpu_read_msr(uint32_t msr, uint64_t *value) {
+  return tr_ret(hv_vcpu_read_msr(vmm_vcpuid, msr, value));
 }
 
-int vmm_cpu_write_msr(vmm_cpuid_t cpu, uint32_t msr, uint64_t value) {
-  return tr_ret(hv_vcpu_write_msr(cpu, msr, value));
+int vmm_cpu_write_msr(uint32_t msr, uint64_t value) {
+  return tr_ret(hv_vcpu_write_msr(vmm_vcpuid, msr, value));
 }
 

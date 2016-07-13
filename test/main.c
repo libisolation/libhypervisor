@@ -29,7 +29,6 @@
 
 int main(void)
 {
-  unsigned cpu;
   const uint8_t code[] = {
     0xba, 0xf8, 0x03, /* mov $0x3f8, %dx */
     0x00, 0xd8,       /* add %bl, %al */
@@ -52,22 +51,22 @@ int main(void)
   /* Map it to the second page frame (to avoid the real-mode IDT at 0). */
   vmm_memory_map(mem, 0x1000, 0x1000, 0);
 
-  vmm_cpu_create(&cpu);
+  vmm_cpu_create();
 
   /*
    * Initialize CS to point at 0, via a read-modify-write of sregs.
    * Initialize registers: instruction pointer for our code, addends, and
    * initial flags required by x86 architecture.
    */
-  vmm_cpu_write_register(cpu, VMM_X64_CS, 0);
-  vmm_cpu_write_register(cpu, VMM_X64_RIP, 0x1000);
-  vmm_cpu_write_register(cpu, VMM_X64_RAX, 2);
-  vmm_cpu_write_register(cpu, VMM_X64_RBX, 2);
-  vmm_cpu_write_register(cpu, VMM_X64_RFLAGS, 0x2);
+  vmm_cpu_write_register(VMM_X64_CS, 0);
+  vmm_cpu_write_register(VMM_X64_RIP, 0x1000);
+  vmm_cpu_write_register(VMM_X64_RAX, 2);
+  vmm_cpu_write_register(VMM_X64_RBX, 2);
+  vmm_cpu_write_register(VMM_X64_RFLAGS, 0x2);
 
   /* Repeatedly run code and handle VM exits. */
   while (1) {
-    vmm_cpu_run(cpu);
+    vmm_cpu_run();
     switch (run->exit_reason) {
     case KVM_EXIT_HLT:
       puts("KVM_EXIT_HLT");

@@ -14,6 +14,7 @@ int kvm, vmfd;
 struct kvm_run *run;
 struct kvm_regs regs;
 struct kvm_sregs sregs;
+int vcpufd;
 
 int
 vmm_create(void)
@@ -52,15 +53,12 @@ vmm_memory_map(vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, vmm_memory_flags
 }
 
 int
-vmm_cpu_create(vmm_cpuid_t *cpu)
+vmm_cpu_create()
 {
-  int cpufd;
   int mmap_size;
 
-  if ((cpufd = ioctl(vmfd, KVM_CREATE_VCPU, 0UL)) < 0)
+  if ((vcpufd = ioctl(vmfd, KVM_CREATE_VCPU, 0UL)) < 0)
     return VMM_ERROR;
-
-  cpu = (unsigned)cpufd;
 
   /* Map the shared kvm_run structure and following data. */
   if ((mmap_size = ioctl(kvm, KVM_GET_VCPU_MMAP_SIZE, NULL)) < 0)
@@ -73,7 +71,7 @@ vmm_cpu_create(vmm_cpuid_t *cpu)
 }
 
 int
-vmm_cpu_run(vmm_cpuid_t cpu)
+vmm_cpu_run()
 {
   if (ioctl(vcpufd, KVM_RUN, NULL) < 0)
     return VMM_ERROR;
@@ -119,7 +117,7 @@ struct kvm_sregs {
 */
 
 int
-vmm_cpu_write_register(vmm_cpuid_t cpu, vmm_x64_reg_t reg, uint64_t value)
+vmm_cpu_write_register(vmm_x64_reg_t reg, uint64_t value)
 {
   if (ioctl(vcpufd, KVM_GET_REGS, &regs) < 0)
     return VMM_ERROR;
