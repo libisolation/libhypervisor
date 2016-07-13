@@ -26,6 +26,10 @@
 
 #include "hv.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 
 int main(void)
 {
@@ -44,8 +48,10 @@ int main(void)
 
   /* Allocate one aligned page of guest memory to hold the code. */
   mem = mmap(NULL, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-  if (!mem)
-    err(1, "allocating guest memory");
+  if (!mem) {
+    fprintf(stderr, "allocating guest memory");
+    abort();
+  }
   memcpy(mem, code, sizeof(code));
 
   /* Map it to the second page frame (to avoid the real-mode IDT at 0). */
@@ -85,7 +91,7 @@ int main(void)
     /* case KVM_EXIT_INTERNAL_ERROR: */
     /*   errx(1, "KVM_EXIT_INTERNAL_ERROR: suberror = 0x%x", run->internal.suberror); */
     default:
-     fprintf(stderr, "exit_reason = 0x%x", exit_reason);
+     fprintf(stderr, "exit_reason = 0x%llx", exit_reason);
      abort();
     }
   }
