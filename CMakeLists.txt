@@ -8,4 +8,5 @@ include_directories(include)
 
 include(${CMAKE_SYSTEM_NAME}.cmake)
 
+enable_testing()
 add_subdirectory(test)

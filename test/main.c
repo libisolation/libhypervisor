@@ -24,7 +24,7 @@
  * IN THE SOFTWARE.
  */
 
-#include "hv.h"
+#include <vmm.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,25 +73,30 @@ int main(void)
   /* Repeatedly run code and handle VM exits. */
   while (1) {
     vmm_cpu_run();
-    uint64_t exit_reason;
+    uint64_t exit_reason, value;
     vmm_get(VMM_CTRL_EXIT_REASON, &exit_reason);
     switch (exit_reason) {
     case VMM_EXIT_HLT:
       puts("KVM_EXIT_HLT");
       return 0;
-    /* case KVM_EXIT_IO: */
-    /*   if (run->io.direction == KVM_EXIT_IO_OUT && run->io.size == 1 && run->io.port == 0x3f8 && run->io.count == 1) */
-    /*     putchar(*(((char *)run) + run->io.data_offset)); */
-    /*   else */
-    /*     errx(1, "unhandled KVM_EXIT_IO"); */
-    /*   break; */
+    case VMM_EXIT_IO:
+      //if (run->io.direction == KVM_EXIT_IO_OUT && run->io.size == 1 && run->io.port == 0x3f8 && run->io.count == 1)
+      //  putchar(*(((char *)run) + run->io.data_offset));
+      //else
+      //  errx(1, "unhandled KVM_EXIT_IO");
+      //break;
+      vmm_cpu_read_register(VMM_X64_RAX, &value);
+      putchar((char) value);
+      break;
     /* case KVM_EXIT_FAIL_ENTRY: */
     /*   errx(1, "KVM_EXIT_FAIL_ENTRY: hardware_entry_failure_reason = 0x%llx", */
     /*        (unsigned long long)run->fail_entry.hardware_entry_failure_reason); */
     /* case KVM_EXIT_INTERNAL_ERROR: */
     /*   errx(1, "KVM_EXIT_INTERNAL_ERROR: suberror = 0x%x", run->internal.suberror); */
     default:
-     fprintf(stderr, "exit_reason = 0x%llx", exit_reason);
+     vmm_cpu_read_register(VMM_X64_RIP, &value);
+     fprintf(stderr, "ip = 0x%lx\n", value);
+     fprintf(stderr, "exit_reason = 0x%lx", exit_reason);
      abort();
     }
   }

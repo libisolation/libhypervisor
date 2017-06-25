@@ -11,11 +11,11 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-int kvm, vmfd;
-struct kvm_run *run;
-struct kvm_regs regs;
-struct kvm_sregs sregs;
-int vcpufd;
+static int kvm, vmfd;
+static struct kvm_run *run;
+static struct kvm_regs regs;
+static struct kvm_sregs sregs;
+static int vcpufd;
 
 int
 vmm_create(void)
@@ -23,7 +23,7 @@ vmm_create(void)
   int ret;
 
   if ((kvm = open("/dev/kvm", O_RDWR | O_CLOEXEC)) < 0)
-    return VMM_ERROR;
+    return VMM_ENOTSUP;
 
   /* check API version */
   if ((ret = ioctl(kvm, KVM_GET_API_VERSION, NULL)) < 0)
@@ -65,7 +65,6 @@ vmm_cpu_create()
   /* Map the shared kvm_run structure and following data. */
   if ((mmap_size = ioctl(kvm, KVM_GET_VCPU_MMAP_SIZE, NULL)) < 0)
     return VMM_ERROR;
-  assert(mmap_size < sizeof(*run))
   if ((run = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, vcpufd, 0)) == 0)
     return VMM_ERROR;
 
@@ -188,6 +187,72 @@ vmm_cpu_write_register(vmm_x64_reg_t reg, uint64_t value)
   if (ioctl(vcpufd, KVM_SET_SREGS, &sregs) < 0)
     return VMM_ERROR;
 
+  return 0;
+}
+
+int
+vmm_cpu_read_register(vmm_x64_reg_t reg, uint64_t *value)
+{
+  if (ioctl(vcpufd, KVM_GET_REGS, &regs) < 0)
+    return VMM_ERROR;
+  if (ioctl(vcpufd, KVM_GET_SREGS, &sregs) < 0)
+    return VMM_ERROR;
+
+  switch (reg) {
+  case VMM_X64_RIP:      *value = regs.rip; break;
+  case VMM_X64_RFLAGS:   *value = regs.rflags; break;
+  case VMM_X64_RAX:      *value = regs.rax; break;
+  case VMM_X64_RBX:      *value = regs.rbx; break;
+  case VMM_X64_RCX:      *value = regs.rcx; break;
+  case VMM_X64_RDX:      *value = regs.rdx; break;
+  case VMM_X64_RSI:      *value = regs.rsi; break;
+  case VMM_X64_RDI:      *value = regs.rdi; break;
+  case VMM_X64_RSP:      *value = regs.rsp; break;
+  case VMM_X64_RBP:      *value = regs.rbp; break;
+  case VMM_X64_R8:
+  case VMM_X64_R9:
+  case VMM_X64_R10:
+  case VMM_X64_R11:
+  case VMM_X64_R12:
+  case VMM_X64_R13:
+  case VMM_X64_R14:
+  case VMM_X64_R15:
+  case VMM_X64_CS:
+  case VMM_X64_SS:
+  case VMM_X64_DS:
+  case VMM_X64_ES:
+  case VMM_X64_FS:
+  case VMM_X64_GS:
+  case VMM_X64_IDT_BASE:
+  case VMM_X64_IDT_LIMIT:
+  case VMM_X64_GDT_BASE:
+  case VMM_X64_GDT_LIMIT:
+  case VMM_X64_LDTR:
+  case VMM_X64_LDT_BASE:
+  case VMM_X64_LDT_LIMIT:
+  case VMM_X64_LDT_AR:
+  case VMM_X64_TR:
+  case VMM_X64_TSS_BASE:
+  case VMM_X64_TSS_LIMIT:
+  case VMM_X64_TSS_AR:
+  case VMM_X64_CR0:
+  case VMM_X64_CR1:
+  case VMM_X64_CR2:
+  case VMM_X64_CR3:
+  case VMM_X64_CR4:
+  case VMM_X64_DR0:
+  case VMM_X64_DR1:
+  case VMM_X64_DR2:
+  case VMM_X64_DR3:
+  case VMM_X64_DR4:
+  case VMM_X64_DR5:
+  case VMM_X64_DR6:
+  case VMM_X64_DR7:
+  case VMM_X64_TPR:
+  case VMM_X64_XCR0:
+  default:
+    assert(false);
+  }
   return 0;
 }
 
