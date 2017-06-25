@@ -1,4 +1,4 @@
-#include "hv.h"
+#include <vmm.h>
 #include <Hypervisor/hv.h>
 
 static int tr_ret(hv_return_t ret) {
@@ -119,4 +119,3 @@ int vmm_cpu_read_msr(uint32_t msr, uint64_t *value) {
 int vmm_cpu_write_msr(uint32_t msr, uint64_t value) {
   return tr_ret(hv_vcpu_write_msr(vmm_vcpuid, msr, value));
 }
-

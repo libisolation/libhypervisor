@@ -1,5 +1,5 @@
-#ifndef HV_H
-#define HV_H
+#ifndef VMM_H
+#define VMM_H
 
 #ifdef __cplusplus
 extern "C" {

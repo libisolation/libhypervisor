@@ -1,3 +1,4 @@
+#include <vmm.h>
 #include <assert.h>
 #include <err.h>
 #include <fcntl.h>
@@ -21,7 +22,7 @@ vmm_create(void)
 {
   int ret;
 
-  if ((kvm = open("/dev/kvm", O_RDWR | OCLOEXEC)) < 0)
+  if ((kvm = open("/dev/kvm", O_RDWR | O_CLOEXEC)) < 0)
     return VMM_ERROR;
 
   /* check API version */
@@ -45,6 +46,7 @@ vmm_memory_map(vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, vmm_memory_flags
     .memory_size = size,
     .userspace_addr = (uint64_t)uva,
   };
+  int ret;
 
   if ((ret = ioctl(vmfd, KVM_SET_USER_MEMORY_REGION, &region)) < 0)
     return VMM_ERROR;

@@ -1,3 +1,8 @@
-# libhv [![Build Status](https://travis-ci.org/linux-noah/libhv.svg?branch=master)](https://travis-ci.org/linux-noah/libhv)
+# libhypervisor [![Build Status](https://travis-ci.org/libisolation/libhypervisor.svg?branch=master)](https://travis-ci.org/libisolation/libhypervisor)
 
-libhv is a cross-platform hypervisor library.
+libhypervisor is a cross-platform hypervisor library.
+Currently KVM and Apple Hypervisor Framework are supported.
+
+# Author
+
+Yuichi Nishiwaki (yuichi.nishiwaki@gmail.com)

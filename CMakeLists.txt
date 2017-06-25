@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.4)
 
-project(hv)
+project(hypervisor)
 
 set(CMAKE_BUILD_TYPE Release)
 
