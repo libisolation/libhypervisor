@@ -1,5 +1,6 @@
 #include <vmm.h>
 #include <Hypervisor/hv.h>
+#include <sys/mman.h>
 
 static int tr_ret(hv_return_t ret) {
   if (ret == HV_SUCCESS)      return 0;
@@ -12,37 +13,45 @@ static int tr_ret(hv_return_t ret) {
   return VMM_ERROR;
 }
 
-int vmm_create(void) {
+static hv_memory_flags_t tr_prot(int prot) {
+  hv_memory_flags_t ret = 0;
+  if (prot | PROT_READ) ret |= HV_MEMORY_READ;
+  if (prot | PROT_WRITE) ret |= HV_MEMORY_WRITE;
+  if (prot | PROT_EXEC) ret |= HV_MEMORY_EXEC;
+  return ret;
+}
+
+int vmm_create(vmm_vm_t *vm) {
   return tr_ret(hv_vm_create(HV_VM_DEFAULT));
 }
 
-int vmm_destroy(void) {
+int vmm_destroy(vmm_vm_t vm) {
   return tr_ret(hv_vm_destroy());
 }
 
-int vmm_memory_map(vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, vmm_memory_flags_t flags) {
-  return tr_ret(hv_vm_map(uva, gpa, size, flags));
+int vmm_memory_map(vmm_vm_t vm, vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, int prot) {
+  return tr_ret(hv_vm_map(uva, gpa, size, tr_prot(prot)));
 }
 
-int vmm_memory_unmap(vmm_gpaddr_t gpa, size_t size) {
+int vmm_memory_unmap(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size) {
   return tr_ret(hv_vm_unmap(gpa, size));
 }
 
-int vmm_memory_protect(vmm_gpaddr_t gpa, size_t size, vmm_memory_flags_t flags) {
-  return tr_ret(hv_vm_protect(gpa, size, flags));
+int vmm_memory_protect(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size, int prot) {
+  return tr_ret(hv_vm_protect(gpa, size, tr_prot(prot)));
 }
 
 __thread unsigned vmm_vcpuid;
 
-int vmm_cpu_create(void) {
+int vmm_cpu_create(vmm_vm_t vm, vmm_cpu_t *cpu) {
   return tr_ret(hv_vcpu_create(&vmm_vcpuid, HV_VCPU_DEFAULT));
 }
 
-int vmm_cpu_destroy(void) {
+int vmm_cpu_destroy(vmm_vm_t vm, vmm_cpu_t cpu) {
   return tr_ret(hv_vcpu_destroy(vmm_vcpuid));
 }
 
-int vmm_cpu_run(void) {
+int vmm_cpu_run(vmm_vm_t vm, vmm_cpu_t cpu) {
   return tr_ret(hv_vcpu_run(vmm_vcpuid));
 }
 
@@ -104,18 +113,26 @@ static hv_x86_reg_t tr_reg(vmm_x64_reg_t reg) {
   }
 }
 
-int vmm_cpu_read_register(vmm_x64_reg_t reg, uint64_t *value) {
+int vmm_cpu_get_register(vmm_vm_t vm, vmm_cpu_t cpu, vmm_x64_reg_t reg, uint64_t *value) {
   return tr_ret(hv_vcpu_read_register(vmm_vcpuid, tr_reg(reg), value));
 }
 
-int vmm_cpu_write_register(vmm_x64_reg_t reg, uint64_t value) {
+int vmm_cpu_set_register(vmm_vm_t vm, vmm_cpu_t cpu, vmm_x64_reg_t reg, uint64_t value) {
   return tr_ret(hv_vcpu_write_register(vmm_vcpuid, tr_reg(reg), value));
 }
 
-int vmm_cpu_read_msr(uint32_t msr, uint64_t *value) {
+int vmm_cpu_get_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t *value) {
   return tr_ret(hv_vcpu_read_msr(vmm_vcpuid, msr, value));
 }
 
-int vmm_cpu_write_msr(uint32_t msr, uint64_t value) {
+int vmm_cpu_set_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t value) {
   return tr_ret(hv_vcpu_write_msr(vmm_vcpuid, msr, value));
+}
+
+int vmm_cpu_get_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t *value) {
+  return -1;
+}
+
+int vmm_cpu_set_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t value) {
+  return -1;
 }

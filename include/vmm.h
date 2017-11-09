@@ -15,6 +15,8 @@ extern "C" {
 #define VMM_ENOMEM  (-ENOMEM)
 #define VMM_ENODEV  (-ENODEV)
 #define VMM_ENOTSUP (-ENOTSUP)
+#define VMM_ERROR   (-200)       // Other General Error
+#define VMM_ENORES  (-201)       // Can occur on Darwin
 
 typedef enum {
   VMM_X64_RIP,
