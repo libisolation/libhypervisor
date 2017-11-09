@@ -30,7 +30,24 @@
 #include <string.h>
 #include <assert.h>
 #include <fcntl.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/mman.h>
+#endif
+
+#ifdef _WIN32
+void *memalloc(size_t size)
+{
+  return VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+}
+#else
+void *memalloc(size_t size)
+{
+  return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+}
+#endif
 
 int main(void)
 {
@@ -51,7 +68,7 @@ int main(void)
   assert(ret == 0);
 
   /* Allocate one aligned page of guest memory to hold the code. */
-  mem = mmap(NULL, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  mem = memalloc(0x1000);
   if (!mem) {
     fprintf(stderr, "allocating guest memory");
     abort();

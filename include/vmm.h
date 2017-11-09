@@ -142,6 +142,14 @@ int vmm_memory_map(vmm_vm_t vm, vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size,
 int vmm_memory_unmap(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size) __attribute__ ((error ("vmm_memory_unmap is not supported for KVM")));
 int vmm_memory_protect(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size, int prot) __attribute__ ((error ("vmm_memory_protect is not supported for KVM")));
 
+#elif _WIN32
+
+#include <vmm_prot.h>
+
+int vmm_memory_map(vmm_vm_t vm, vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, int prot);
+int vmm_memory_unmap(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size);
+int vmm_memory_protect(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size, int prot);
+
 #endif
 
 

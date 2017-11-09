@@ -1,0 +1,68 @@
+#ifndef LIBHV_PRCSSR_FLGAS_H
+#define LIBHV_PRCSSR_FLGAS_H
+
+#define X86_CR0_PE     (1ULL << 0)
+#define X86_CR0_MP     (1ULL << 1)
+#define X86_CR0_EM     (1ULL << 2)
+#define X86_CR0_TS     (1ULL << 3)
+#define X86_CR0_ET     (1ULL << 4)
+#define X86_CR0_NE     (1ULL << 5)
+#define X86_CR0_WP     (1ULL << 16)
+#define X86_CR0_AM     (1ULL << 18)
+#define X86_CR0_NW     (1ULL << 29)
+#define X86_CR0_CD     (1ULL << 30)
+#define X86_CR0_PG     (1ULL << 31)
+
+
+#define X86_CR3_PWT     (1ULL << 3)
+#define X86_CR3_PCD     (1ULL << 4)
+
+
+#define X86_CR4_VME            (1ULL << 0)
+#define X86_CR4_PVI            (1ULL << 1)
+#define X86_CR4_TSD            (1ULL << 2)
+#define X86_CR4_DE             (1ULL << 3)
+#define X86_CR4_PSE            (1ULL << 4)
+#define X86_CR4_PAE            (1ULL << 5)
+#define X86_CR4_MCE            (1ULL << 6)
+#define X86_CR4_PGE            (1ULL << 7)
+#define X86_CR4_PCE            (1ULL << 8)
+#define X86_CR4_OSFXSR         (1ULL << 9)
+#define X86_CR4_OSXMMEXCPT     (1ULL << 10)
+#define X86_CR4_VMXE           (1ULL << 13)
+#define X86_CR4_SMXE           (1ULL << 14)
+#define X86_CR4_FSGSBASE       (1ULL << 16)
+#define X86_CR4_PCIDE          (1ULL << 17)
+#define X86_CR4_OSXSAVE        (1ULL << 18)
+#define X86_CR4_SMEP           (1ULL << 20)
+#define X86_CR4_SMAP           (1ULL << 21)
+
+
+#define X86_EFLAGS_CF        (1ULL << 0)
+#define X86_EFLAGS_FIXED     (1ULL << 1)
+#define X86_EFLAGS_PF        (1ULL << 2)
+#define X86_EFLAGS_AF        (1ULL << 4)
+#define X86_EFLAGS_ZF        (1ULL << 6)
+#define X86_EFLAGS_SF        (1ULL << 7)
+#define X86_EFLAGS_TF        (1ULL << 8)
+#define X86_EFLAGS_IF        (1ULL << 9)
+#define X86_EFLAGS_DF        (1ULL << 10)
+#define X86_EFLAGS_OF        (1ULL << 11)
+#define X86_EFLAGS_IOPL      (1ULL << 12)
+#define X86_EFLAGS_NT        (1ULL << 14)
+#define X86_EFLAGS_RF        (1ULL << 16)
+#define X86_EFLAGS_VM        (1ULL << 17)
+#define X86_EFLAGS_AC        (1ULL << 18)
+#define X86_EFLAGS_VIF       (1ULL << 19)
+#define X86_EFLAGS_VIP       (1ULL << 20)
+#define X86_EFLAGS_ID        (1ULL << 21)
+
+#define EFER_SCE       (1ULL << 0)
+#define EFER_LME       (1ULL << 8)
+#define EFER_LMA       (1ULL << 10)
+#define EFER_NX        (1ULL << 11)
+#define EFER_SVME      (1ULL << 12)
+#define EFER_LMSLE     (1ULL << 13)
+#define EFER_FFXSR     (1ULL << 14)
+
+#endif

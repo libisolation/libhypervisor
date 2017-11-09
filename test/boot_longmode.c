@@ -1,13 +1,29 @@
-#include "../include/vmm.h"
+#include <vmm.h>
+#include <processor-flags.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <fcntl.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/mman.h>
-#include <sys/ioctl.h>
-#include <asm/processor-flags.h>
-#include <asm/msr-index.h>
+#endif
+
+#ifdef _WIN32
+void *memalloc(size_t size)
+{
+  return VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+}
+#else
+void *memalloc(size_t size)
+{
+  return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+}
+#endif
 
 #define PG_V  1
 #define PG_RW (1 << 1)
@@ -171,7 +187,7 @@ int main()
   assert(err == 0);
   
 
-  char *mem = mmap(NULL, 0x100000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  char *mem = memalloc(0x100000);
   bzero(mem, 0x100000);
   err = vmm_memory_map(vm, mem, 0, 0x100000, PROT_READ | PROT_WRITE | PROT_EXEC);
   assert(err == 0);
