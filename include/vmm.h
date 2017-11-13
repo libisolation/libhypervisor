@@ -9,6 +9,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 #include <errno.h>
+#include "libhv_exports.h"
 
 #define VMM_EBUSY   (-EBUSY)
 #define VMM_EINVAL  (-EINVAL)
@@ -106,20 +107,20 @@ enum {
 
 typedef struct vmm_vm *vmm_vm_t;
 
-int vmm_create(vmm_vm_t *vm);
-int vmm_destroy(vmm_vm_t vm);
+int EXTERN vmm_create(vmm_vm_t *vm);
+int EXTERN vmm_destroy(vmm_vm_t vm);
 
 typedef struct vmm_cpu *vmm_cpu_t;
 
-int vmm_cpu_create(vmm_vm_t vm, vmm_cpu_t *cpu);
-int vmm_cpu_destroy(vmm_vm_t vm, vmm_cpu_t cpu);
-int vmm_cpu_run(vmm_vm_t vm, vmm_cpu_t cpu);
-int vmm_cpu_get_register(vmm_vm_t vm, vmm_cpu_t cpu, vmm_x64_reg_t reg, uint64_t *value);
-int vmm_cpu_set_register(vmm_vm_t vm, vmm_cpu_t cpu, vmm_x64_reg_t reg, uint64_t value);
-int vmm_cpu_get_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t *value);
-int vmm_cpu_set_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t value);
-int vmm_cpu_get_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t *value);
-int vmm_cpu_set_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t value);
+int EXTERN vmm_cpu_create(vmm_vm_t vm, vmm_cpu_t *cpu);
+int EXTERN vmm_cpu_destroy(vmm_vm_t vm, vmm_cpu_t cpu);
+int EXTERN vmm_cpu_run(vmm_vm_t vm, vmm_cpu_t cpu);
+int EXTERN vmm_cpu_get_register(vmm_vm_t vm, vmm_cpu_t cpu, vmm_x64_reg_t reg, uint64_t *value);
+int EXTERN vmm_cpu_set_register(vmm_vm_t vm, vmm_cpu_t cpu, vmm_x64_reg_t reg, uint64_t value);
+int EXTERN vmm_cpu_get_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t *value);
+int EXTERN vmm_cpu_set_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t value);
+int EXTERN vmm_cpu_get_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t *value);
+int EXTERN vmm_cpu_set_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t value);
 
 typedef const void *vmm_uvaddr_t;
 typedef uint64_t vmm_gpaddr_t;
@@ -128,29 +129,29 @@ typedef uint64_t vmm_gpaddr_t;
 /* TODO: Abstract memory map management in Linux KVM */
 #ifdef __APPLE__
 
-int vmm_memory_map(vmm_vm_t vm, vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, int prot);
-int vmm_memory_unmap(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size);
-int vmm_memory_protect(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size, int prot);
+int EXTERN vmm_memory_map(vmm_vm_t vm, vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, int prot);
+int EXTERN vmm_memory_unmap(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size);
+int EXTERN vmm_memory_protect(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size, int prot);
 
 #elif __linux__
 
 #include <linux/kvm.h>
 typedef struct kvm_userspace_memory_region *vmm_memregion_t;
 
-int vmm_memregion_set(vmm_vm_t vm, uint32_t reg_slot, vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, int prot);
-int vmm_memregion_unset(vmm_vm_t vm, uint32_t reg_slot);
-
-int vmm_memory_map(vmm_vm_t vm, vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, int prot) __attribute__ ((warning ("vmm_memory_map is not fully supported for KVM")));
-int vmm_memory_unmap(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size) __attribute__ ((error ("vmm_memory_unmap is not supported for KVM")));
-int vmm_memory_protect(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size, int prot) __attribute__ ((error ("vmm_memory_protect is not supported for KVM")));
+int EXTERN vmm_memregion_set(vmm_vm_t vm, uint32_t reg_slot, vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, int prot);
+int EXTERN vmm_memregion_unset(vmm_vm_t vm, uint32_t reg_slot);
+    
+int EXTERN vmm_memory_map(vmm_vm_t vm, vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, int prot) __attribute__ ((warning ("vmm_memory_map is not fully supported for KVM")));
+int EXTERN vmm_memory_unmap(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size) __attribute__ ((error ("vmm_memory_unmap is not supported for KVM")));
+int EXTERN vmm_memory_protect(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size, int prot) __attribute__ ((error ("vmm_memory_protect is not supported for KVM")));
 
 #elif _WIN32
 
 #include <vmm_prot.h>
 
-int vmm_memory_map(vmm_vm_t vm, vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, int prot);
-int vmm_memory_unmap(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size);
-int vmm_memory_protect(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size, int prot);
+int EXTERN vmm_memory_map(vmm_vm_t vm, vmm_uvaddr_t uva, vmm_gpaddr_t gpa, size_t size, int prot);
+int EXTERN vmm_memory_unmap(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size);
+int EXTERN vmm_memory_protect(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size, int prot);
 
 #endif
 
