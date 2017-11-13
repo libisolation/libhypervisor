@@ -44,10 +44,10 @@ hax_notify_qemu_version(vmm_vm_t vm)
   static const struct hax_qemu_version qemu_version = {0x2, 0x1};
   BOOL ret = DeviceIoControl(vm->vmfd,
     HAX_VM_IOCTL_NOTIFY_QEMU_VERSION,
-    &qemu_version, sizeof(struct hax_qemu_version),
+    reinterpret_cast<LPVOID>(const_cast<struct hax_qemu_version *>(&qemu_version)), sizeof(struct hax_qemu_version),
     NULL, 0,
-    &ret_size,
-    (LPOVERLAPPED)NULL);
+    reinterpret_cast<LPDWORD>( &ret_size),
+    reinterpret_cast<LPOVERLAPPED>(NULL));
   if (!ret)
     return VMM_ERROR;
   return 0;
@@ -61,11 +61,11 @@ vmm_create(vmm_vm_t *ret)
     if (err < 0)
       return err;
   }
-  struct vmm_vm *vm = malloc(sizeof(*vm));
+  struct vmm_vm *vm = (struct vmm_vm *)malloc(sizeof(*vm));
   memset(vm, 0, sizeof(*vm));
 
   int ret_size;
-  BOOL succ = DeviceIoControl(hax_dev, HAX_IOCTL_CREATE_VM, NULL, 0, &vm->vmid, sizeof(int), &ret_size, (LPOVERLAPPED)NULL);
+  BOOL succ = DeviceIoControl(hax_dev, HAX_IOCTL_CREATE_VM, NULL, 0, &vm->vmid, sizeof(int), (LPDWORD)&ret_size, (LPOVERLAPPED)NULL);
   if (!succ)
     return VMM_ERROR; // We cannot convert it to more meaningful error due to lack of the document of HAXM
 

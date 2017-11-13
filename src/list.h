@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2016 Yuichi Nishiwaki
+ * Copyright (c) 2016 Yuichi Nishiwaki, Takaya Saeki
  * Copyright (c) 2010 Isilon Systems, Inc.
  * Copyright (c) 2010 iX Systems, Inc.
  * Copyright (c) 2010 Panasas, Inc.
@@ -59,12 +59,12 @@ list_del(struct list_head *entry)
 }
 
 static inline void
-_list_add(struct list_head *new, struct list_head *prev, struct list_head *next)
+_list_add(struct list_head *new_, struct list_head *prev, struct list_head *next)
 {
-  next->prev = new;
-  new->next = next;
-  new->prev = prev;
-  prev->next = new;
+  next->prev = new_;
+  new_->next = next;
+  new_->prev = prev;
+  prev->next = new_;
 }
 
 static inline void
@@ -101,15 +101,15 @@ list_del_init(struct list_head *entry)
 #define	list_for_each_prev(p, h) for (p = (h)->prev; p != (h); p = p->prev)
 
 static inline void
-list_add(struct list_head *new, struct list_head *head)
+list_add(struct list_head *new_, struct list_head *head)
 {
-  _list_add(new, head, head->next);
+  _list_add(new_, head, head->next);
 }
 
 static inline void
-list_add_tail(struct list_head *new, struct list_head *head)
+list_add_tail(struct list_head *new_, struct list_head *head)
 {
-  _list_add(new, head->prev, head);
+  _list_add(new_, head->prev, head);
 }
 
 static inline void
@@ -248,11 +248,11 @@ hlist_add_after(struct hlist_node *n, struct hlist_node *next)
 }
 
 static inline void
-hlist_move_list(struct hlist_head *old, struct hlist_head *new)
+hlist_move_list(struct hlist_head *old, struct hlist_head *new_)
 {
-  new->first = old->first;
-  if (new->first)
-    new->first->pprev = &new->first;
+  new_->first = old->first;
+  if (new_->first)
+    new_->first->pprev = &new_->first;
   old->first = NULL;
 }
 
