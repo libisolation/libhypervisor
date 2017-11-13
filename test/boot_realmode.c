@@ -1,6 +1,6 @@
 /* Sample code for /dev/kvm API
  *
- * Copyright (c) 2016 Yuichi Nishiwaki
+ * Copyright (c) 2016 Yuichi Nishiwaki, Takaya Saeki
  *
  * Copyright (c) 2015 Intel Corporation
  * Author: Josh Triplett <josh@joshtriplett.org>
@@ -62,7 +62,6 @@ int main(void)
   };
   uint8_t *mem;
   int ret;
-
   vmm_vm_t vm;
   ret = vmm_create(&vm);
   assert(ret == 0);
