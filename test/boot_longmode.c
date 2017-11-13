@@ -188,7 +188,7 @@ int main()
   
 
   char *mem = memalloc(0x100000);
-  bzero(mem, 0x100000);
+  memset(mem, 0, 0x100000);
   err = vmm_memory_map(vm, mem, 0, 0x100000, PROT_READ | PROT_WRITE | PROT_EXEC);
   assert(err == 0);
 
