@@ -11,13 +11,17 @@ extern "C" {
 #include <errno.h>
 #include "libhv_exports.h"
 
+typedef int vmm_return_t;
+
+#define VMM_SUCCESS 0
 #define VMM_EBUSY   (-EBUSY)
 #define VMM_EINVAL  (-EINVAL)
 #define VMM_ENOMEM  (-ENOMEM)
 #define VMM_ENODEV  (-ENODEV)
 #define VMM_ENOTSUP (-ENOTSUP)
-#define VMM_ERROR   (-200)       // Other General Error
-#define VMM_ENORES  (-201)       // Can occur on Darwin
+#define VMM_ERROR             (-200)  // Other General Error
+#define VMM_ENORES            (-201)  // Can occur on Darwin
+#define VMM_EGMEM_ALLOC_FAIL  (-202)  // Can occur on Windows
 
 typedef enum {
   VMM_X64_RIP,
