@@ -20,14 +20,16 @@ struct vmm_vm {
   int vmid;
   std::list<struct vmm_cpu*> cpus;
 
-  vmm_vm() : vmfd(INVALID_HANDLE_VALUE), vmid(-1), cpus(std::list<struct vmm_cpu*>()) {};
+  vmm_vm() : vmfd(INVALID_HANDLE_VALUE), vmid(0), cpus(std::list<struct vmm_cpu*>()) {};
 };
 
 struct vmm_cpu {
   HANDLE vcpufd;
   int vcpuid;
-  struct hax_tunnel_info *tunnel_info;
   struct hax_tunnel *tunnel;
+  unsigned char *iobuf;
+
+  vmm_cpu() : vcpufd(INVALID_HANDLE_VALUE), vcpuid(0), tunnel(NULL), iobuf(NULL) {};
 };
 
 static vmm_return_t
@@ -46,7 +48,7 @@ static vmm_return_t
 hax_notify_qemu_version(HANDLE vmfd)
 {
   int ret_size;
-  static const struct hax_qemu_version qemu_version = {0x2, 0x1};
+  static const struct hax_qemu_version qemu_version = {0x4, 0x4};
   BOOL succ = DeviceIoControl(vmfd,
     HAX_VM_IOCTL_NOTIFY_QEMU_VERSION,
     reinterpret_cast<LPVOID>(const_cast<struct hax_qemu_version *>(&qemu_version)), sizeof(struct hax_qemu_version),
@@ -129,14 +131,19 @@ hax_map_region(HANDLE vmfd, uint64_t uva, uint64_t gpa, uint32_t size, int flags
 }
 
 static vmm_return_t
-hax_setup_vcpu_tunnel(HANDLE vcpufd, struct hax_tunnel_info *tunnel)
+hax_setup_vcpu_tunnel(HANDLE vcpufd, struct hax_tunnel **tunnel, unsigned char **iobuf)
 {
   DWORD dsize;
+  struct hax_tunnel_info tunnel_info = {0};
   BOOL succ = DeviceIoControl(vcpufd,
     HAX_VCPU_IOCTL_SETUP_TUNNEL, NULL, 0,
-    tunnel, sizeof(*tunnel), &dsize, (LPOVERLAPPED)NULL);
+    &tunnel_info, sizeof(tunnel_info), &dsize, (LPOVERLAPPED)NULL);
   if (!succ)
     return VMM_ERROR;
+  if (dsize > sizeof(tunnel_info))
+    return VMM_EUNKNOWN_VERSION;
+  *tunnel = reinterpret_cast<struct hax_tunnel *>(tunnel_info.va);
+  *iobuf = reinterpret_cast<unsigned char *>(tunnel_info.io_va);
   return VMM_SUCCESS;
 }
 
@@ -146,15 +153,18 @@ hax_create_vcpu(HANDLE vmfd, int vmid, HANDLE *vcpufd, int *vcpuid)
   DWORD dsize;
   BOOL succ = DeviceIoControl(vmfd,
     HAX_VM_IOCTL_VCPU_CREATE,
-    vcpuid, sizeof(vcpuid), NULL, 0,
+    vcpuid, sizeof(*vcpuid), NULL, 0,
     &dsize, (LPOVERLAPPED)NULL);
   if (!succ)
     return VMM_ERROR;
+  *vcpuid = 0;
 
-  std::string dev_path("\\\\.\\hax_vm");
-  dev_path += std::to_string(vmid) + "_vcpu" + std::to_string(*vcpuid);
+  char dev_path[MAX_PATH];
+  int str_size = snprintf(dev_path, MAX_PATH, "\\\\.\\hax_vm%02d_vcpu%02d", vmid, *vcpuid);
+  if (str_size > MAX_PATH)
+    return VMM_ERROR;
 
-  *vcpufd = CreateFile(dev_path.c_str(),
+  *vcpufd = CreateFile(dev_path,
     GENERIC_READ | GENERIC_WRITE,
     0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
   if (*vcpufd == INVALID_HANDLE_VALUE)
@@ -256,10 +266,9 @@ vmm_cpu_create(vmm_vm_t vm, vmm_cpu_t *cpu)
   ret = hax_create_vcpu(vm->vmfd, vm->vmid, &new_cpu->vcpufd, &new_cpu->vcpuid);
   if (ret != VMM_SUCCESS)
     return ret;
-  ret = hax_setup_vcpu_tunnel(new_cpu->vcpufd, new_cpu->tunnel_info);
+  ret = hax_setup_vcpu_tunnel(new_cpu->vcpufd, &new_cpu->tunnel, &new_cpu->iobuf);
   if (ret != VMM_SUCCESS)
     return ret;
-  new_cpu->tunnel = reinterpret_cast<struct hax_tunnel *>(&new_cpu->tunnel_info->io_va);
   *cpu = new_cpu.release();
   vm->cpus.push_back(*cpu);
 
@@ -405,7 +414,7 @@ vmm_cpu_set_register(vmm_vm_t vm, vmm_cpu_t cpu, vmm_x64_reg_t reg, uint64_t val
   if (ret != VMM_SUCCESS)
     return ret;
   gs_vcpu_state(reg, &state, value, true);
-  return VMM_SUCCESS;
+  return hax_set_vcpu_state(vm->vmfd, cpu->vcpufd, &state);
 }
 
 vmm_return_t
@@ -432,13 +441,13 @@ vmm_cpu_set_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t value)
 }
 
 static inline int
-to_vmm_exit_reason(uint32_t e)
+to_vmm_exit_reason(uint32_t hax_exit_status)
 {
-  switch (e) {
+  switch (hax_exit_status) {
   case HAX_EXIT_HLT: return VMM_EXIT_HLT;
   case HAX_EXIT_IO: return VMM_EXIT_IO;
   default:
-    fprintf(stderr, "UNSUPPORTED EXIT_REASON: %d\n", e);
+    fprintf(stderr, "Unexpected HAX's exit_status: %d\n", hax_exit_status);
     assert(false);
     return -1;
   }
@@ -449,9 +458,13 @@ vmm_cpu_get_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t *value)
 {
   switch(id) {
   case VMM_CTRL_EXIT_REASON:
-    return to_vmm_exit_reason(cpu->tunnel->exit_reason);
+    *value = to_vmm_exit_reason(cpu->tunnel->exit_status);
+    break;
+  default:
+    fprintf(stderr, "Unsupported vcpu state id: %d\n", id);
+    return VMM_ERROR;
   }
-  return VMM_ERROR;
+  return VMM_SUCCESS;
 }
 
 vmm_return_t

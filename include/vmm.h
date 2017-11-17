@@ -22,6 +22,7 @@ typedef int vmm_return_t;
 #define VMM_ERROR             (-200)  // Other General Error
 #define VMM_ENORES            (-201)  // Can occur on Darwin
 #define VMM_EGMEM_ALLOC_FAIL  (-202)  // Can occur on Windows
+#define VMM_EUNKNOWN_VERSION  (-203)  // Can occur on Windows
 
 typedef enum {
   VMM_X64_RIP,

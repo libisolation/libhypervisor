@@ -51,12 +51,12 @@ void *memalloc(size_t size)
 
 int main(void)
 {
+  // Add rax + rbx (they both are 2, so the answer is 4)
+  // and out it as ascii by adding '0' to it
   const uint8_t code[] = {
     0xba, 0xf8, 0x03, /* mov $0x3f8, %dx */
     0x00, 0xd8,       /* add %bl, %al */
     0x04, '0',        /* add $'0', %al */
-    0xee,             /* out %al, (%dx) */
-    0xb0, '\n',       /* mov $'\n', %al */
     0xee,             /* out %al, (%dx) */
     0xf4,             /* hlt */
   };
@@ -87,18 +87,21 @@ int main(void)
    * Initialize registers: instruction pointer for our code, addends, and
    * initial flags required by x86 architecture.
    */
-  vmm_cpu_set_register(vm, cpu, VMM_X64_CS, 0);
-  vmm_cpu_set_register(vm, cpu, VMM_X64_CS_BASE, 0);
-  vmm_cpu_set_register(vm, cpu, VMM_X64_RIP, 0x1000);
-  vmm_cpu_set_register(vm, cpu, VMM_X64_RAX, 2);
-  vmm_cpu_set_register(vm, cpu, VMM_X64_RBX, 2);
-  vmm_cpu_set_register(vm, cpu, VMM_X64_RFLAGS, 0x2);
+  ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_CS, 0);
+  ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_CS_BASE, 0);
+  ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_RIP, 0x1000);
+  ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_RAX, 2);
+  ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_RBX, 2);
+  ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_RFLAGS, 0x2);
+  assert(ret == 0);
 
   /* Repeatedly run code and handle VM exits. */
   while (1) {
+    uint64_t exit_reason, value;
+    ret = vmm_cpu_get_register(vm, cpu, VMM_X64_RIP, &value);
     ret = vmm_cpu_run(vm, cpu);
     assert(ret == 0);
-    uint64_t exit_reason, value;
+    ret = vmm_cpu_get_register(vm, cpu, VMM_X64_RIP, &value);
     ret = vmm_cpu_get_state(vm, cpu, VMM_CTRL_EXIT_REASON, &exit_reason);
     assert(ret == 0);
     switch (exit_reason) {
@@ -113,6 +116,7 @@ int main(void)
       //break;
       ret = vmm_cpu_get_register(vm, cpu, VMM_X64_RAX, &value);
       assert(ret == 0);
+      assert((char) value == '4'); // 2 + 2 as a char
       putchar((char) value);
       break;
     /* case KVM_EXIT_FAIL_ENTRY: */
