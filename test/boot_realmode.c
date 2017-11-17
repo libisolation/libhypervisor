@@ -98,10 +98,8 @@ int main(void)
   /* Repeatedly run code and handle VM exits. */
   while (1) {
     uint64_t exit_reason, value;
-    ret = vmm_cpu_get_register(vm, cpu, VMM_X64_RIP, &value);
     ret = vmm_cpu_run(vm, cpu);
     assert(ret == 0);
-    ret = vmm_cpu_get_register(vm, cpu, VMM_X64_RIP, &value);
     ret = vmm_cpu_get_state(vm, cpu, VMM_CTRL_EXIT_REASON, &exit_reason);
     assert(ret == 0);
     switch (exit_reason) {
