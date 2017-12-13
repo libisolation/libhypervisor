@@ -168,6 +168,8 @@ void init_page64(vmm_vm_t vm, vmm_cpu_t cpu, char *mem)
   vmm_cpu_set_register(vm, cpu, VMM_X64_CR4, X86_CR4_PAE);
   vmm_cpu_set_register(vm, cpu, VMM_X64_CR0, X86_CR0_PG | X86_CR0_PE | X86_CR0_NE);
   vmm_cpu_set_register(vm, cpu, VMM_X64_EFER, EFER_LME | EFER_LMA | EFER_NX);
+  static const uint32_t efer_msr = 0xc0000080;
+  vmm_cpu_set_msr(vm, cpu, efer_msr, EFER_LME | EFER_LMA | EFER_NX);
 }
 
 int main()

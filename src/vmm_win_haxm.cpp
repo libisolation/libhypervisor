@@ -208,6 +208,30 @@ hax_run_vcpu(HANDLE vcpufd)
   return VMM_SUCCESS;
 }
 
+static vmm_return_t
+hax_get_msrs(HANDLE vcpufd, struct hax_msr_data *msrs)
+{
+  DWORD dsize;
+  BOOL succ = DeviceIoControl(vcpufd, HAX_VCPU_IOCTL_GET_MSRS, 
+    msrs, sizeof(*msrs), msrs, sizeof(*msrs),
+    &dsize, (LPOVERLAPPED)NULL);
+  if (!succ)
+    return VMM_ERROR;
+  return VMM_SUCCESS;
+}
+
+static vmm_return_t
+hax_set_msrs(HANDLE vcpufd, struct hax_msr_data *msrs)
+{
+  DWORD dsize;
+  BOOL succ = DeviceIoControl(vcpufd, HAX_VCPU_IOCTL_SET_MSRS, 
+    msrs, sizeof(*msrs), msrs, sizeof(*msrs),
+    &dsize, (LPOVERLAPPED)NULL);
+  if (!succ)
+    return VMM_ERROR;
+  return VMM_SUCCESS;
+}
+
 vmm_return_t
 vmm_create(vmm_vm_t *ret)
 {
@@ -287,20 +311,6 @@ vmm_cpu_run(vmm_vm_t vm, vmm_cpu_t cpu)
   return hax_run_vcpu(cpu->vcpufd);
 }
 
-#define EXTRACT(value, l, r) (((value) & ((1 << (l + 1)) - 1)) >> r)
-static inline void
-set_ar(struct segment_desc_t *ar, uint64_t value)
-{
-  ar->type = EXTRACT(value, 3, 0);
-  ar->present = EXTRACT(value, 7, 7);
-  ar->dpl = EXTRACT(value, 6, 5);
-  ar->operand_size = EXTRACT(value, 14, 14);
-  ar->desc = EXTRACT(value, 4, 4);
-  ar->long_mode = EXTRACT(value, 13, 13);
-  ar->granularity = EXTRACT(value, 15, 15);
-  ar->available = EXTRACT(value, 12, 12);
-}
-
 static inline uint64_t
 gs_vcpu_state(int reg, struct vcpu_state_t *state, uint64_t value, bool sets)
 {
@@ -328,51 +338,35 @@ gs_vcpu_state(int reg, struct vcpu_state_t *state, uint64_t value, bool sets)
   case VMM_X64_CS:        SET_OR_GET(state->cs.selector);
   case VMM_X64_CS_BASE:   SET_OR_GET(state->cs.base);
   case VMM_X64_CS_LIMIT:  SET_OR_GET(state->cs.limit);
-  case VMM_X64_CS_AR:
-    set_ar(&state->cs, value);
-    break;
+  case VMM_X64_CS_AR:     SET_OR_GET(state->cs.ar);
   case VMM_X64_SS:        SET_OR_GET(state->ss.selector);
   case VMM_X64_SS_BASE:   SET_OR_GET(state->ss.base);
   case VMM_X64_SS_LIMIT:  SET_OR_GET(state->ss.limit);
-  case VMM_X64_SS_AR:
-    set_ar(&state->ss, value);
-    break;
+  case VMM_X64_SS_AR:     SET_OR_GET(state->ss.ar);
   case VMM_X64_DS:        SET_OR_GET(state->ds.selector);
   case VMM_X64_DS_BASE:   SET_OR_GET(state->ds.base);
   case VMM_X64_DS_LIMIT:  SET_OR_GET(state->ds.limit);
-  case VMM_X64_DS_AR:
-    set_ar(&state->ds, value);
-    break;
+  case VMM_X64_DS_AR:     SET_OR_GET(state->ds.ar);
   case VMM_X64_ES:        SET_OR_GET(state->es.selector);
   case VMM_X64_ES_BASE:   SET_OR_GET(state->es.base);
   case VMM_X64_ES_LIMIT:  SET_OR_GET(state->es.limit);
-  case VMM_X64_ES_AR:
-    set_ar(&state->es, value);
-    break;
+  case VMM_X64_ES_AR:     SET_OR_GET(state->es.ar);
   case VMM_X64_FS:        SET_OR_GET(state->fs.selector);
   case VMM_X64_FS_BASE:   SET_OR_GET(state->fs.base);
   case VMM_X64_FS_LIMIT:  SET_OR_GET(state->fs.limit);
-  case VMM_X64_FS_AR:
-    set_ar(&state->fs, value);
-    break;
+  case VMM_X64_FS_AR:     SET_OR_GET(state->fs.ar);
   case VMM_X64_GS:        SET_OR_GET(state->gs.selector);
   case VMM_X64_GS_BASE:   SET_OR_GET(state->gs.base);
   case VMM_X64_GS_LIMIT:  SET_OR_GET(state->gs.limit);
-  case VMM_X64_GS_AR:
-    set_ar(&state->gs, value);
-    break;
+  case VMM_X64_GS_AR:     SET_OR_GET(state->gs.ar);
   case VMM_X64_LDTR:      SET_OR_GET(state->ldt.selector);
   case VMM_X64_LDT_BASE:  SET_OR_GET(state->ldt.base);
   case VMM_X64_LDT_LIMIT: SET_OR_GET(state->ldt.limit);
-  case VMM_X64_LDT_AR:
-    set_ar(&state->ldt, value);
-    break;
+  case VMM_X64_LDT_AR:    SET_OR_GET(state->ldt.ar);
   case VMM_X64_TR:        SET_OR_GET(state->tr.selector);
   case VMM_X64_TSS_BASE:  SET_OR_GET(state->tr.base);
   case VMM_X64_TSS_LIMIT: SET_OR_GET(state->tr.limit);
-  case VMM_X64_TSS_AR:
-    set_ar(&state->tr, value);
-    break;
+  case VMM_X64_TSS_AR:    SET_OR_GET(state->tr.ar);
   case VMM_X64_IDT_BASE:  SET_OR_GET(state->idt.base);
   case VMM_X64_IDT_LIMIT: SET_OR_GET(state->idt.limit);
   case VMM_X64_GDT_BASE:  SET_OR_GET(state->gdt.base);
@@ -431,13 +425,27 @@ vmm_cpu_get_register(vmm_vm_t vm, vmm_cpu_t cpu, vmm_x64_reg_t reg, uint64_t *va
 vmm_return_t
 vmm_cpu_get_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t *value)
 {
-  return VMM_ERROR;
+  struct hax_msr_data msrs;
+  msrs.done = 0;
+  msrs.nr_msr = 1;
+  msrs.entries[0].entry = msr;
+  msrs.entries[0].value = 0;
+  vmm_return_t ret = hax_get_msrs(cpu->vcpufd, &msrs);
+  if (ret != VMM_SUCCESS)
+    return ret;
+  *value = msrs.entries[0].value;
+  return VMM_SUCCESS;
 }
 
 vmm_return_t
 vmm_cpu_set_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t value)
 {
-  return VMM_ERROR;
+  struct hax_msr_data msrs;
+  msrs.done = 0;
+  msrs.nr_msr = 1;
+  msrs.entries[0].entry = msr;
+  msrs.entries[0].value = value;
+  return hax_set_msrs(cpu->vcpufd, &msrs);
 }
 
 static inline int
@@ -446,6 +454,7 @@ to_vmm_exit_reason(uint32_t hax_exit_status)
   switch (hax_exit_status) {
   case HAX_EXIT_HLT: return VMM_EXIT_HLT;
   case HAX_EXIT_IO: return VMM_EXIT_IO;
+  case HAX_EXIT_STATECHANGE: return VMM_EXIT_SHUTDOWN;
   default:
     fprintf(stderr, "Unexpected HAX's exit_status: %d\n", hax_exit_status);
     assert(false);
@@ -459,6 +468,9 @@ vmm_cpu_get_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t *value)
   switch(id) {
   case VMM_CTRL_EXIT_REASON:
     *value = to_vmm_exit_reason(cpu->tunnel->exit_status);
+    break;
+  case VMM_CTRL_NATIVE_EXIT_REASON:
+    *value = to_vmm_exit_reason(cpu->tunnel->exit_reason);
     break;
   default:
     fprintf(stderr, "Unsupported vcpu state id: %d\n", id);
