@@ -339,6 +339,21 @@ int vmm_cpu_set_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t value) {
   return tr_ret(hv_vcpu_write_msr(vmm_vcpuid, msr, value));
 }
 
+static hv_return_t inc_rip_to_next(void) {
+  uint64_t rip, instlen;
+  hv_return_t err = hv_vmx_vcpu_read_vmcs(vmm_vcpuid, VMCS_GUEST_RIP, &rip);
+  if (err != HV_SUCCESS)
+    return tr_ret(err);
+  err = hv_vmx_vcpu_read_vmcs(vmm_vcpuid, VMCS_RO_VMEXIT_INSTR_LEN, &instlen);
+  if (err != HV_SUCCESS)
+    return tr_ret(err);
+  err = hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_RIP, rip + instlen);
+  if (err != HV_SUCCESS)
+    return tr_ret(err);
+  return HV_SUCCESS;
+}
+
+
 int vmm_cpu_get_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t *value) {
   switch (id) {
     case VMM_CTRL_EXIT_REASON: {
@@ -352,8 +367,13 @@ int vmm_cpu_get_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t *value) {
         break;
       }
       switch (exit_reason) {
-        case VMX_REASON_HLT: *value = VMM_EXIT_HLT; break;
-        case VMX_REASON_IO: *value = VMM_EXIT_IO; break;
+        case VMX_REASON_HLT: 
+          *value = VMM_EXIT_HLT; 
+          break;
+        case VMX_REASON_IO:
+          inc_rip_to_next();
+          *value = VMM_EXIT_IO; 
+          break;
         default:
           *value = VMM_EXIT_REASONS_MAX;
           fprintf(stderr, "UNKOWN EXIT_REASON: 0x%llx\n", exit_reason);
