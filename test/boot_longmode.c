@@ -117,6 +117,19 @@ void init_segment64(vmm_vm_t vm, vmm_cpu_t cpu, char *mem)
   vmm_cpu_set_register(vm, cpu, VMM_X64_GDT_BASE, ADDR_GTD);
   vmm_cpu_set_register(vm, cpu, VMM_X64_GDT_LIMIT, 3 * 8 - 1);
 
+  vmm_cpu_set_register(vm, cpu, VMM_X64_TR, 0);
+  vmm_cpu_set_register(vm, cpu, VMM_X64_TSS_BASE, 0);
+  vmm_cpu_set_register(vm, cpu, VMM_X64_TSS_LIMIT, 0);
+  vmm_cpu_set_register(vm, cpu, VMM_X64_TSS_AR, 0x0000008b);
+
+  static const uint64_t desc_unusable = 0x00010000;
+  vmm_cpu_set_register(vm, cpu, VMM_X64_LDT_BASE, 0);
+  vmm_cpu_set_register(vm, cpu, VMM_X64_LDT_LIMIT, 0);
+  vmm_cpu_set_register(vm, cpu, VMM_X64_LDT_AR, desc_unusable);
+
+  vmm_cpu_set_register(vm, cpu, VMM_X64_IDT_BASE, 0);
+  vmm_cpu_set_register(vm, cpu, VMM_X64_IDT_LIMIT, 0xffff);
+
   vmm_cpu_set_register(vm, cpu, VMM_X64_CS, 0x8);
   vmm_cpu_set_register(vm, cpu, VMM_X64_CS_BASE, 0);
   vmm_cpu_set_register(vm, cpu, VMM_X64_CS_LIMIT, 0);
