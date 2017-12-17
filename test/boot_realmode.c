@@ -85,6 +85,7 @@ int main(void)
   assert(ret == 0);
 
   ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_CS, 0);
+  ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_CS_BASE, 0);
   ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_RIP, 0x1000);
   ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_RAX, 2);
   ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_RBX, 2);
