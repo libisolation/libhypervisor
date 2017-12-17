@@ -9,7 +9,8 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 #include <errno.h>
-#include "libhv_exports.h"
+// #include "libhv_exports.h"
+#define EXTERN
 
 typedef int vmm_return_t;
 
@@ -23,6 +24,7 @@ typedef int vmm_return_t;
 #define VMM_ENORES            (-201)  // Can occur on Darwin
 #define VMM_EGMEM_ALLOC_FAIL  (-202)  // Can occur on Windows
 #define VMM_EUNKNOWN_VERSION  (-203)  // Can occur on Windows
+#define VMM_INTERNAL_ERROR    (-204)  // Bug of Libhypervisor
 
 typedef enum {
   VMM_X64_RIP,

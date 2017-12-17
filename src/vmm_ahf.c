@@ -1,6 +1,17 @@
 #include <vmm.h>
+#include <processor-flags.h>
 #include <Hypervisor/hv.h>
+#include <Hypervisor/hv_vmx.h>
+#include <Hypervisor/hv_arch_vmx.h>
 #include <sys/mman.h>
+#include <assert.h>
+#include <stdio.h>
+
+
+/*
+ * Currently AHF does not support multiple VMs,
+ * so ignoring arguments of vmm_vm_t type in all APIs
+ */
 
 static int tr_ret(hv_return_t ret) {
   if (ret == HV_SUCCESS)      return 0;
@@ -43,8 +54,126 @@ int vmm_memory_protect(vmm_vm_t vm, vmm_gpaddr_t gpa, size_t size, int prot) {
 
 __thread unsigned vmm_vcpuid;
 
+static inline uint64_t
+cap2ctrl(uint64_t cap, uint64_t ctrl)
+{
+  return (ctrl | (cap & 0xffffffff)) & (cap >> 32);
+}
+
+static int
+init_vmcs()
+{
+  uint64_t vmx_cap_pinbased, vmx_cap_procbased, vmx_cap_procbased2, vmx_cap_entry;
+
+  hv_vmx_read_capability(HV_VMX_CAP_PINBASED, &vmx_cap_pinbased);
+  hv_vmx_read_capability(HV_VMX_CAP_PROCBASED, &vmx_cap_procbased);
+  hv_vmx_read_capability(HV_VMX_CAP_PROCBASED2, &vmx_cap_procbased2);
+  hv_vmx_read_capability(HV_VMX_CAP_ENTRY, &vmx_cap_entry);
+
+  /* set up vmcs */
+
+#define VMCS_PRI_PROC_BASED_CTLS_HLT           (1 << 7)
+#define VMCS_PRI_PROC_BASED_CTLS_CR8_LOAD      (1 << 19)
+#define VMCS_PRI_PROC_BASED_CTLS_CR8_STORE     (1 << 20)
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_PIN_BASED, cap2ctrl(vmx_cap_pinbased, 0));
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CPU_BASED, cap2ctrl(vmx_cap_procbased,
+                                                 VMCS_PRI_PROC_BASED_CTLS_HLT |
+                                                 VMCS_PRI_PROC_BASED_CTLS_CR8_LOAD |
+                                                 VMCS_PRI_PROC_BASED_CTLS_CR8_STORE));
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CPU_BASED2, cap2ctrl(vmx_cap_procbased2, 0));
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_VMENTRY_CONTROLS, cap2ctrl(vmx_cap_entry, VMENTRY_LOAD_EFER));
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_EXC_BITMAP, 0xffffffff);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CR0_MASK, 0x0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CR0_SHADOW, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CR4_MASK, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CR4_SHADOW, 0);
+
+  /* set up cpu regs */
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CS, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CS_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CS_LIMIT, 0x10000);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CS_AR, 0x9b);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_DS, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_DS_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_DS_LIMIT, 0xffff);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_DS_AR, 0x93);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_ES, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_ES_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_ES_LIMIT, 0xffff);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_ES_AR, 0x93);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_FS, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_FS_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_FS_LIMIT, 0xffff);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_FS_AR, 0x93);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_GS, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_GS_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_GS_LIMIT, 0xffff);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_GS_AR, 0x93);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_SS, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_SS_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_SS_LIMIT, 0xffff);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_SS_AR, 0x93);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_LDTR, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_LDTR_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_LDTR_LIMIT, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_LDTR_AR, 0x10000);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_TR, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_TR_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_TR_LIMIT, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_TR_AR, 0x83);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_GDTR_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_GDTR_LIMIT, 0);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_IDTR_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_IDTR_LIMIT, 0);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CR0, 0x20);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CR3, 0x0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CR4, 0x2000);
+
+
+// Workaround
+
+#define MSR_TIME_STAMP_COUNTER 0x00000010
+#define MSR_KERNEL_GS_BASE     0xc0000102
+#define MSR_TSC_AUX            0xc0000103
+
+  hv_vcpu_enable_native_msr(vmm_vcpuid, MSR_TIME_STAMP_COUNTER, 1);
+  hv_vcpu_enable_native_msr(vmm_vcpuid, MSR_KERNEL_GS_BASE, 1);
+  hv_vcpu_enable_native_msr(vmm_vcpuid, MSR_TSC_AUX, 1);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_TR, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_TR_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_TR_LIMIT, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_TR_AR, 0x0000008b);
+
+#define DESC_UNUSABLE 0x00010000
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_LDTR_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_LDTR_LIMIT, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_LDTR_AR, DESC_UNUSABLE);
+
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_IDTR_BASE, 0);
+  hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_IDTR_LIMIT, 0xffff);
+
+  return 0;
+}
+
+
 int vmm_cpu_create(vmm_vm_t vm, vmm_cpu_t *cpu) {
-  return tr_ret(hv_vcpu_create(&vmm_vcpuid, HV_VCPU_DEFAULT));
+  int err = tr_ret(hv_vcpu_create(&vmm_vcpuid, HV_VCPU_DEFAULT));
+  if (err != 0)
+    return err;
+  return tr_ret(init_vmcs());
 }
 
 int vmm_cpu_destroy(vmm_vm_t vm, vmm_cpu_t cpu) {
@@ -52,73 +181,154 @@ int vmm_cpu_destroy(vmm_vm_t vm, vmm_cpu_t cpu) {
 }
 
 int vmm_cpu_run(vmm_vm_t vm, vmm_cpu_t cpu) {
-  return tr_ret(hv_vcpu_run(vmm_vcpuid));
+  while (true) {
+    hv_return_t err = hv_vcpu_run(vmm_vcpuid);
+    if (err != HV_SUCCESS)
+      return tr_ret(err);
+
+    uint64_t exit_reason = 0;
+    err = hv_vmx_vcpu_read_vmcs(vmm_vcpuid, VMCS_RO_EXIT_REASON, &exit_reason);
+    if (err != HV_SUCCESS)
+      return VMM_INTERNAL_ERROR;
+    // TODO: Check if this memory region is mapped by a user
+    if (exit_reason != VMX_REASON_EPT_VIOLATION)
+      break;
+  }
+  return 0;
 }
 
-static hv_x86_reg_t tr_reg(vmm_x64_reg_t reg) {
+static inline hv_return_t
+gs_vcpu_state(int reg, uint64_t *value, bool sets)
+{
+#define SET_OR_GET(field) do {return sets ? (hv_vmx_vcpu_write_vmcs(vmm_vcpuid, field, *value)) : hv_vmx_vcpu_read_vmcs(vmm_vcpuid, field, value);} while(0)
   switch (reg) {
-#define CASE(NAME) case VMM_X64_##NAME: return HV_X86_##NAME;
-   CASE(RIP)
-   CASE(RFLAGS)
-   CASE(RAX)
-   CASE(RCX)
-   CASE(RDX)
-   CASE(RBX)
-   CASE(RSI)
-   CASE(RDI)
-   CASE(RSP)
-   CASE(RBP)
-   CASE(R8)
-   CASE(R9)
-   CASE(R10)
-   CASE(R11)
-   CASE(R12)
-   CASE(R13)
-   CASE(R14)
-   CASE(R15)
-   CASE(CS)
-   CASE(SS)
-   CASE(DS)
-   CASE(ES)
-   CASE(FS)
-   CASE(GS)
-   CASE(IDT_BASE)
-   CASE(IDT_LIMIT)
-   CASE(GDT_BASE)
-   CASE(GDT_LIMIT)
-   CASE(LDTR)
-   CASE(LDT_BASE)
-   CASE(LDT_LIMIT)
-   CASE(LDT_AR)
-   CASE(TR)
-   CASE(TSS_BASE)
-   CASE(TSS_LIMIT)
-   CASE(TSS_AR)
-   CASE(CR0)
-   CASE(CR1)
-   CASE(CR2)
-   CASE(CR3)
-   CASE(CR4)
-   CASE(DR0)
-   CASE(DR1)
-   CASE(DR2)
-   CASE(DR3)
-   CASE(DR4)
-   CASE(DR5)
-   CASE(DR6)
-   CASE(DR7)
-   CASE(TPR)
-   CASE(XCR0)
-   CASE(REGISTERS_MAX)
+  case VMM_X64_RIP:    SET_OR_GET(VMCS_GUEST_RIP);
+  case VMM_X64_RSP:    SET_OR_GET(VMCS_GUEST_RSP);
+  case VMM_X64_RFLAGS: SET_OR_GET(VMCS_GUEST_RFLAGS);
+
+  case VMM_X64_CS:        SET_OR_GET(VMCS_GUEST_CS);
+  case VMM_X64_CS_BASE:   SET_OR_GET(VMCS_GUEST_CS_BASE);
+  case VMM_X64_CS_LIMIT:  SET_OR_GET(VMCS_GUEST_CS_LIMIT);
+  case VMM_X64_CS_AR:     SET_OR_GET(VMCS_GUEST_CS_AR);
+  case VMM_X64_SS:        SET_OR_GET(VMCS_GUEST_SS);
+  case VMM_X64_SS_BASE:   SET_OR_GET(VMCS_GUEST_SS_BASE);
+  case VMM_X64_SS_LIMIT:  SET_OR_GET(VMCS_GUEST_SS_LIMIT);
+  case VMM_X64_SS_AR:     SET_OR_GET(VMCS_GUEST_SS_AR);
+  case VMM_X64_DS:        SET_OR_GET(VMCS_GUEST_DS);
+  case VMM_X64_DS_BASE:   SET_OR_GET(VMCS_GUEST_DS_BASE);
+  case VMM_X64_DS_LIMIT:  SET_OR_GET(VMCS_GUEST_DS_LIMIT);
+  case VMM_X64_DS_AR:     SET_OR_GET(VMCS_GUEST_DS_AR);
+  case VMM_X64_ES:        SET_OR_GET(VMCS_GUEST_ES);
+  case VMM_X64_ES_BASE:   SET_OR_GET(VMCS_GUEST_ES_BASE);
+  case VMM_X64_ES_LIMIT:  SET_OR_GET(VMCS_GUEST_ES_LIMIT);
+  case VMM_X64_ES_AR:     SET_OR_GET(VMCS_GUEST_ES_AR);
+  case VMM_X64_FS:        SET_OR_GET(VMCS_GUEST_FS);
+  case VMM_X64_FS_BASE:   SET_OR_GET(VMCS_GUEST_FS_BASE);
+  case VMM_X64_FS_LIMIT:  SET_OR_GET(VMCS_GUEST_FS_LIMIT);
+  case VMM_X64_FS_AR:     SET_OR_GET(VMCS_GUEST_FS_AR);
+  case VMM_X64_GS:        SET_OR_GET(VMCS_GUEST_GS);
+  case VMM_X64_GS_BASE:   SET_OR_GET(VMCS_GUEST_GS_BASE);
+  case VMM_X64_GS_LIMIT:  SET_OR_GET(VMCS_GUEST_GS_LIMIT);
+  case VMM_X64_GS_AR:     SET_OR_GET(VMCS_GUEST_GS_AR);
+  case VMM_X64_LDTR:      SET_OR_GET(VMCS_GUEST_LDTR);
+  case VMM_X64_LDT_BASE:  SET_OR_GET(VMCS_GUEST_LDTR_BASE);
+  case VMM_X64_LDT_LIMIT: SET_OR_GET(VMCS_GUEST_LDTR_LIMIT);
+  case VMM_X64_LDT_AR:    SET_OR_GET(VMCS_GUEST_LDTR_AR);
+  case VMM_X64_TR:        SET_OR_GET(VMCS_GUEST_TR);
+  case VMM_X64_IDT_BASE:  SET_OR_GET(VMCS_GUEST_IDTR_BASE);
+  case VMM_X64_IDT_LIMIT: SET_OR_GET(VMCS_GUEST_IDTR_LIMIT);
+  case VMM_X64_GDT_BASE:  SET_OR_GET(VMCS_GUEST_GDTR_BASE);
+  case VMM_X64_GDT_LIMIT: SET_OR_GET(VMCS_GUEST_GDTR_LIMIT);
+
+  case VMM_X64_CR0:  SET_OR_GET(VMCS_GUEST_CR0);
+  case VMM_X64_CR1:  return VMM_EINVAL;
+  case VMM_X64_CR3:  SET_OR_GET(VMCS_GUEST_CR3);
+  case VMM_X64_CR4:  SET_OR_GET(VMCS_GUEST_CR4);
+  case VMM_X64_CR8:  return VMM_EINVAL;
+  // EFER needs special handling
+  case VMM_X64_EFER:
+    if (sets) {
+      uint64_t vmx_cap_entry, vmx_cap_exit;
+      hv_return_t err;
+      err = hv_vmx_read_capability(HV_VMX_CAP_ENTRY, &vmx_cap_entry);
+      if (err != HV_SUCCESS)
+        return err;
+      err = hv_vmx_read_capability(HV_VMX_CAP_EXIT, &vmx_cap_exit);
+      if (err != HV_SUCCESS)
+        return err;
+      if (*value & EFER_LME) {
+        *value |= EFER_LME | EFER_LMA | EFER_NX;
+        err = hv_vmx_vcpu_write_vmcs(
+            vmm_vcpuid,
+            VMCS_CTRL_VMENTRY_CONTROLS,
+            cap2ctrl(vmx_cap_entry, VMENTRY_LOAD_EFER | VMENTRY_GUEST_IA32E)
+        );
+        if (err != HV_SUCCESS)
+          return err;
+        err = hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_VMEXIT_CONTROLS, cap2ctrl(vmx_cap_exit, VMEXIT_LOAD_EFER));
+      } else {
+        *value &= ~(EFER_LME | EFER_LMA);
+        err = hv_vmx_vcpu_write_vmcs(
+            vmm_vcpuid,
+            VMCS_CTRL_VMENTRY_CONTROLS,
+            cap2ctrl(vmx_cap_entry, 0)
+        );
+        if (err != HV_SUCCESS)
+          return err;
+        err = hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_VMEXIT_CONTROLS, cap2ctrl(vmx_cap_exit, 0));
+      }
+      if (err != HV_SUCCESS)
+        return err;
+    }
+    SET_OR_GET(VMCS_GUEST_IA32_EFER);
+  case VMM_X64_DR0:
+  case VMM_X64_DR1:
+  case VMM_X64_DR2:
+  case VMM_X64_DR3:
+  case VMM_X64_DR4:
+  case VMM_X64_DR5:
+  case VMM_X64_DR6:
+  case VMM_X64_DR7:
+  case VMM_X64_TPR:
+  case VMM_X64_XCR0:
+    assert(false); // TODO
   }
+#undef SET_OR_GET
+#define SET_OR_GET(field) do {return sets ? (hv_vcpu_write_register(vmm_vcpuid, field, *value)) : hv_vcpu_read_register(vmm_vcpuid, field, value);} while(0)
+  switch (reg) {
+  case VMM_X64_RAX:    SET_OR_GET(HV_X86_RAX);
+  case VMM_X64_RBX:    SET_OR_GET(HV_X86_RBX);
+  case VMM_X64_RCX:    SET_OR_GET(HV_X86_RCX);
+  case VMM_X64_RDX:    SET_OR_GET(HV_X86_RDX);
+  case VMM_X64_RSI:    SET_OR_GET(HV_X86_RSI);
+  case VMM_X64_RDI:    SET_OR_GET(HV_X86_RDI);
+  case VMM_X64_RBP:    SET_OR_GET(HV_X86_RBP);
+  case VMM_X64_R8:     SET_OR_GET(HV_X86_R8);
+  case VMM_X64_R9:     SET_OR_GET(HV_X86_R9);
+  case VMM_X64_R10:    SET_OR_GET(HV_X86_R10);
+  case VMM_X64_R11:    SET_OR_GET(HV_X86_R11);
+  case VMM_X64_R12:    SET_OR_GET(HV_X86_R12);
+  case VMM_X64_R13:    SET_OR_GET(HV_X86_R13);
+  case VMM_X64_R14:    SET_OR_GET(HV_X86_R14);
+  case VMM_X64_R15:    SET_OR_GET(HV_X86_R15);
+
+  case VMM_X64_TSS_BASE:  SET_OR_GET(HV_X86_TSS_BASE);
+  case VMM_X64_TSS_LIMIT: SET_OR_GET(HV_X86_TSS_LIMIT);
+  case VMM_X64_TSS_AR:    SET_OR_GET(HV_X86_TSS_AR);
+
+  case VMM_X64_CR2:  SET_OR_GET(HV_X86_CR2);
+  }
+
+  assert(false);
+  return 0;
 }
 
 int vmm_cpu_get_register(vmm_vm_t vm, vmm_cpu_t cpu, vmm_x64_reg_t reg, uint64_t *value) {
-  return tr_ret(hv_vcpu_read_register(vmm_vcpuid, tr_reg(reg), value));
+  return tr_ret(gs_vcpu_state(reg, value, false));
 }
 
 int vmm_cpu_set_register(vmm_vm_t vm, vmm_cpu_t cpu, vmm_x64_reg_t reg, uint64_t value) {
-  return tr_ret(hv_vcpu_write_register(vmm_vcpuid, tr_reg(reg), value));
+  return tr_ret(gs_vcpu_state(reg, &value, true));
 }
 
 int vmm_cpu_get_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t *value) {
@@ -130,9 +340,30 @@ int vmm_cpu_set_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t value) {
 }
 
 int vmm_cpu_get_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t *value) {
-  return -1;
-}
+  switch (id) {
+    case VMM_CTRL_EXIT_REASON: {
+      uint64_t exit_reason = 0;
+      hv_return_t err = hv_vmx_vcpu_read_vmcs(vmm_vcpuid, VMCS_RO_EXIT_REASON, &exit_reason);
+      if (err != HV_SUCCESS)
+        return tr_ret(err);
 
-int vmm_cpu_set_state(vmm_vm_t vm, vmm_cpu_t cpu, int id, uint64_t value) {
-  return -1;
+      if ((0x1ULL << 31) & exit_reason) {
+        *value = VMM_EXIT_FAIL_ENTRY;
+        break;
+      }
+      switch (exit_reason) {
+        case VMX_REASON_HLT: *value = VMM_EXIT_HLT; break;
+        case VMX_REASON_IO: *value = VMM_EXIT_IO; break;
+        default:
+          *value = VMM_EXIT_REASONS_MAX;
+          fprintf(stderr, "UNKOWN EXIT_REASON: 0x%llx\n", exit_reason);
+          assert(false);
+          return -1;
+      }
+      break;
+    }
+    default:
+      return VMM_EINVAL;
+  }
+  return 0;
 }
