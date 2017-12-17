@@ -30,6 +30,8 @@
 #include <string.h>
 #include <assert.h>
 #include <fcntl.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -82,13 +84,7 @@ int main(void)
   ret = vmm_cpu_create(vm, &cpu);
   assert(ret == 0);
 
-  /*
-   * Initialize CS to point at 0, via a read-modify-write of sregs.
-   * Initialize registers: instruction pointer for our code, addends, and
-   * initial flags required by x86 architecture.
-   */
   ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_CS, 0);
-  ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_CS_BASE, 0);
   ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_RIP, 0x1000);
   ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_RAX, 2);
   ret |= vmm_cpu_set_register(vm, cpu, VMM_X64_RBX, 2);
@@ -107,27 +103,20 @@ int main(void)
       puts("KVM_EXIT_HLT");
       return 0;
     case VMM_EXIT_IO:
-      //if (run->io.direction == KVM_EXIT_IO_OUT && run->io.size == 1 && run->io.port == 0x3f8 && run->io.count == 1)
-      //  putchar(*(((char *)run) + run->io.data_offset));
-      //else
-      //  errx(1, "unhandled KVM_EXIT_IO");
-      //break;
       ret = vmm_cpu_get_register(vm, cpu, VMM_X64_RAX, &value);
       assert(ret == 0);
       assert((char) value == '4'); // 2 + 2 as a char
       putchar((char) value);
       break;
-    /* case KVM_EXIT_FAIL_ENTRY: */
-    /*   errx(1, "KVM_EXIT_FAIL_ENTRY: hardware_entry_failure_reason = 0x%llx", */
-    /*        (unsigned long long)run->fail_entry.hardware_entry_failure_reason); */
-    /* case KVM_EXIT_INTERNAL_ERROR: */
-    /*   errx(1, "KVM_EXIT_INTERNAL_ERROR: suberror = 0x%x", run->internal.suberror); */
+    case VMM_EXIT_FAIL_ENTRY:
+      fprintf(stderr, "KVM_EXIT_FAIL_ENTRY\n");
+      abort();
     default:
-     ret = vmm_cpu_get_register(vm, cpu, VMM_X64_RIP, &value);
-     assert(ret == 0);
-     fprintf(stderr, "ip = 0x%lx\n", value);
-     fprintf(stderr, "exit_reason = 0x%lx\n", exit_reason);
-     abort();
+      ret = vmm_cpu_get_register(vm, cpu, VMM_X64_RIP, &value);
+      assert(ret == 0);
+      fprintf(stderr, "ip = 0x%" PRIu64 "\n", value);
+      fprintf(stderr, "exit_reason = 0x%" PRIu64 "\n", exit_reason);
+      abort();
     }
   }
 }

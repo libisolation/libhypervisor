@@ -6,6 +6,8 @@
 #include <string.h>
 #include <assert.h>
 #include <fcntl.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -225,8 +227,8 @@ int main()
     default:
      ret = vmm_cpu_get_register(vm, cpu, VMM_X64_RIP, &value);
      assert(ret == 0);
-     fprintf(stderr, "ip = 0x%lx\n", value);
-     fprintf(stderr, "exit_reason = 0x%lx", exit_reason);
+     fprintf(stderr, "ip = 0x%" PRIu64 "\n", value);
+     fprintf(stderr, "exit_reason = 0x%" PRIu64, exit_reason);
      abort();
     }
   }
