@@ -9,8 +9,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 #include <errno.h>
-// #include "libhv_exports.h"
-#define EXTERN
+#include "libhv_exports.h"
 
 typedef int vmm_return_t;
 
