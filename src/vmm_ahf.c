@@ -1,15 +1,16 @@
 #include <vmm.h>
-#include <processor-flags.h>
+#include <processor_flags.h>
+#include <processor_msrs.h>
+
 #include <Hypervisor/hv.h>
 #include <Hypervisor/hv_vmx.h>
 #include <Hypervisor/hv_arch_vmx.h>
 #include <sys/mman.h>
 #include <assert.h>
 #include <stdio.h>
+#include <inttypes.h>
+#include <stdlib.h>
 
-#define MSR_TIME_STAMP_COUNTER 0x00000010
-#define MSR_KERNEL_GS_BASE     0xc0000102
-#define MSR_TSC_AUX            0xc0000103
 
 /*
  * Currently AHF does not support multiple VMs,
@@ -88,7 +89,7 @@ init_vmcs()
   err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CPU_BASED2, cap2ctrl(vmx_cap_procbased2, 0));
   err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_VMENTRY_CONTROLS, cap2ctrl(vmx_cap_entry, VMENTRY_LOAD_EFER));
   err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_EXC_BITMAP, 0xffffffff);
-  err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CR0_MASK, 0x0);
+  err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CR0_MASK, 0);
   err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CR0_SHADOW, 0);
   err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CR4_MASK, 0);
   err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_CTRL_CR4_SHADOW, 0);
@@ -141,9 +142,9 @@ init_vmcs()
   err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_IDTR_BASE, 0);
   err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_IDTR_LIMIT, 0);
 
-  err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CR0, 0x20);
-  err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CR3, 0x0);
-  err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CR4, 0x2000);
+  err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CR0, X86_CR0_NE);
+  err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CR3, 0);
+  err |= hv_vmx_vcpu_write_vmcs(vmm_vcpuid, VMCS_GUEST_CR4, X86_CR4_VMXE);
 
 /*
  * Workaround:
@@ -152,9 +153,10 @@ init_vmcs()
  * on Apple Hypervisor Framework.
  */
 
-  err |= hv_vcpu_enable_native_msr(vmm_vcpuid, MSR_TIME_STAMP_COUNTER, 1);
-  err |= hv_vcpu_enable_native_msr(vmm_vcpuid, MSR_KERNEL_GS_BASE, 1);
-  err |= hv_vcpu_enable_native_msr(vmm_vcpuid, MSR_TSC_AUX, 1);
+  err |= hv_vcpu_enable_native_msr(vmm_vcpuid, MSR_IA32_TIME_STAMP_COUNTER, 1);
+  err |= hv_vcpu_enable_native_msr(vmm_vcpuid, MSR_IA32_KERNEL_GS_BASE, 1);
+  err |= hv_vcpu_enable_native_msr(vmm_vcpuid, MSR_IA32_TSC_AUX, 1);
+
 
   if (err != HV_SUCCESS)
     err = HV_ERROR;
@@ -236,12 +238,23 @@ gs_vcpu_state(int reg, uint64_t *value, bool sets)
   case VMM_X64_GDT_BASE:  SET_OR_GET(VMCS_GUEST_GDTR_BASE);
   case VMM_X64_GDT_LIMIT: SET_OR_GET(VMCS_GUEST_GDTR_LIMIT);
 
-  case VMM_X64_CR0:  SET_OR_GET(VMCS_GUEST_CR0);
+  // AHF (or VT-x) needs the guest's NE bit of CR0 and VMXE bit of CR4 set
+  // to make VM entry succeed. So, set them by force
+  case VMM_X64_CR0:
+    if (sets) {
+      *value |= X86_CR0_NE;
+    }
+    SET_OR_GET(VMCS_GUEST_CR0);
   case VMM_X64_CR1:  return VMM_EINVAL;
   case VMM_X64_CR3:  SET_OR_GET(VMCS_GUEST_CR3);
-  case VMM_X64_CR4:  SET_OR_GET(VMCS_GUEST_CR4);
+  case VMM_X64_CR4:
+    if (sets) {
+      *value |= X86_CR4_VMXE;
+    }
+    SET_OR_GET(VMCS_GUEST_CR4);
   case VMM_X64_CR8:  return VMM_EINVAL;
-  // EFER needs special handling
+
+  // Change of EFER needs modification of the vmentry control
   case VMM_X64_EFER:
     if (sets) {
       uint64_t vmx_cap_entry, vmx_cap_exit;
@@ -327,9 +340,9 @@ int vmm_cpu_get_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t *value) {
 }
 
 int vmm_cpu_set_msr(vmm_vm_t vm, vmm_cpu_t cpu, uint32_t msr, uint64_t value) {
-  if (msr == MSR_TIME_STAMP_COUNTER ||
-      msr == MSR_KERNEL_GS_BASE ||
-      msr == MSR_TSC_AUX) {
+  if (msr == MSR_IA32_TIME_STAMP_COUNTER ||
+      msr == MSR_IA32_KERNEL_GS_BASE ||
+      msr == MSR_IA32_TSC_AUX) {
     hv_return_t err = hv_vcpu_enable_native_msr(vmm_vcpuid, msr, 0);
     if (err != HV_SUCCESS) {
       return tr_ret(err);
